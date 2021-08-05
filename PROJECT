@@ -1,0 +1,6 @@
+domain: gitops.phoban.io
+layout:
+- go.kubebuilder.io/v3
+projectName: preview-env-controller
+repo: github.com/phoban01/preview-env-controller
+version: "3"
