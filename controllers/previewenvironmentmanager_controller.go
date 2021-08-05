@@ -24,41 +24,49 @@ import (
 	"regexp"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	sourcev1 "github.com/fluxcd/source-controller/api/v1beta1"
 	"github.com/google/go-github/github"
+	previewv1alpha1 "github.com/phoban01/preview-env-controller/api/v1alpha1"
 	v1alpha1 "github.com/phoban01/preview-env-controller/api/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// PreviewEnvironmentDefinitionReconciler reconciles a PreviewEnvironmentDefinition object
-type PreviewEnvironmentDefinitionReconciler struct {
+// PreviewEnvironmentManagerReconciler reconciles a PreviewEnvironmentManager object
+type PreviewEnvironmentManagerReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironmentdefinitions,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironmentdefinitions/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironmentdefinitions/finalizers,verbs=update
+//+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironmentmanagers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironmentmanagers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironmentmanagers/finalizers,verbs=update
 
-// Reconcile is the main sync loop for our controller
-func (r *PreviewEnvironmentDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+// SetupWithManager sets up the controller with the Manager.
+func (r *PreviewEnvironmentManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&previewv1alpha1.PreviewEnvironmentManager{}).
+		Owns(&previewv1alpha1.PreviewEnvironment{}).
+		Complete(r)
+}
+
+func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	obj := &v1alpha1.PreviewEnvironmentDefinition{}
+	obj := &v1alpha1.PreviewEnvironmentManager{}
 
 	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
 		log.Info("object not found", "name", req.NamespacedName.Name, "namespace", req.NamespacedName.Namespace)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	return ctrl.Result{}, nil
+	return r.reconcile(ctx, obj)
 }
 
-func (r *PreviewEnvironmentDefinitionReconciler) reconcile(ctx context.Context, obj *v1alpha1.PreviewEnvironmentDefinition) (ctrl.Result, error) {
+func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj *v1alpha1.PreviewEnvironmentManager) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	// fetch source branches
@@ -115,14 +123,6 @@ func (r *PreviewEnvironmentDefinitionReconciler) reconcile(ctx context.Context, 
 	}
 
 	return ctrl.Result{}, nil
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *PreviewEnvironmentDefinitionReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.PreviewEnvironmentDefinition{}).
-		Owns(&v1alpha1.PreviewEnvironment{}).
-		Complete(r)
 }
 
 func getBranches(ctx context.Context, sourceURL string) (map[string]string, error) {

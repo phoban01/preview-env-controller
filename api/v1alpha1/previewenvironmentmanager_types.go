@@ -24,12 +24,8 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// PreviewEnvironmentDefinitionSpec defines the desired state of PreviewEnvironmentDefinition
-type PreviewEnvironmentDefinitionSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// +required
+// PreviewEnvironmentManagerSpec defines the desired state of PreviewEnvironmentManager
+type PreviewEnvironmentManagerSpec struct {
 	SourceRef types.NamespacedName `json:"sourceRef"`
 
 	// +required
@@ -70,23 +66,23 @@ type Rules struct {
 	MatchBranch string `json:"matchBranch,omitempty"`
 
 	// +optional
-	GitHub GitHubRules `json:"github,omitempty"`
+	// GitHub GitHubRules `json:"github,omitempty"`
 
 	// +optional
-	GitLab GitLabRules `json:"gitlab,omitempty"`
+	// GitLab GitLabRules `json:"gitlab,omitempty"`
 }
 
-type GitHubRules struct {
-	PullRequest bool     `json:"pullRequest"`
-	WithLabel   []string `json:"withLabel"`
-}
+// type GitHubRules struct {
+//     PullRequest bool     `json:"pullRequest"`
+//     WithLabel   []string `json:"withLabel"`
+// }
+//
+// type GitLabRules struct {
+//     MergeRequest bool `json:"mergeRequest"`
+// }
 
-type GitLabRules struct {
-	MergeRequest bool `json:"mergeRequest"`
-}
-
-// PreviewEnvironmentDefinitionStatus defines the observed state of PreviewEnvironmentDefinition
-type PreviewEnvironmentDefinitionStatus struct {
+// PreviewEnvironmentManagerStatus defines the observed state of PreviewEnvironmentManager
+type PreviewEnvironmentManagerStatus struct {
 	// ObservedGeneration is the last observed generation.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
@@ -99,24 +95,24 @@ type PreviewEnvironmentDefinitionStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// PreviewEnvironmentDefinition is the Schema for the previewenvironmentdefinitions API
-type PreviewEnvironmentDefinition struct {
+// PreviewEnvironmentManager is the Schema for the previewenvironmentmanagers API
+type PreviewEnvironmentManager struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   PreviewEnvironmentDefinitionSpec   `json:"spec,omitempty"`
-	Status PreviewEnvironmentDefinitionStatus `json:"status,omitempty"`
+	Spec   PreviewEnvironmentManagerSpec   `json:"spec,omitempty"`
+	Status PreviewEnvironmentManagerStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// PreviewEnvironmentDefinitionList contains a list of PreviewEnvironmentDefinition
-type PreviewEnvironmentDefinitionList struct {
+// PreviewEnvironmentManagerList contains a list of PreviewEnvironmentManager
+type PreviewEnvironmentManagerList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []PreviewEnvironmentDefinition `json:"items"`
+	Items           []PreviewEnvironmentManager `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&PreviewEnvironmentDefinition{}, &PreviewEnvironmentDefinitionList{})
+	SchemeBuilder.Register(&PreviewEnvironmentManager{}, &PreviewEnvironmentManagerList{})
 }

@@ -78,18 +78,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.PreviewEnvironmentDefinitionReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PreviewEnvironmentDefinition")
-		os.Exit(1)
-	}
 	if err = (&controllers.PreviewEnvironmentReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PreviewEnvironment")
+		os.Exit(1)
+	}
+	if err = (&controllers.PreviewEnvironmentManagerReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "PreviewEnvironmentManager")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

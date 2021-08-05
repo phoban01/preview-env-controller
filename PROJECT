@@ -31,4 +31,13 @@ resources:
   kind: PreviewEnvironmentSource
   path: github.com/phoban01/preview-env-controller/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: gitops.phoban.io
+  group: preview
+  kind: PreviewEnvironmentManager
+  path: github.com/phoban01/preview-env-controller/api/v1alpha1
+  version: v1alpha1
 version: "3"

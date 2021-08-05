@@ -1,20 +1,24 @@
-# permissions for end users to view previewenvironmentdefinitions.
+# permissions for end users to edit previewenvironmentmanagers.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: previewenvironmentdefinition-viewer-role
+  name: previewenvironmentmanager-editor-role
 rules:
 - apiGroups:
   - preview.gitops.phoban.io
   resources:
-  - previewenvironmentdefinitions
+  - previewenvironmentmanagers
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - preview.gitops.phoban.io
   resources:
-  - previewenvironmentdefinitions/status
+  - previewenvironmentmanagers/status
   verbs:
   - get

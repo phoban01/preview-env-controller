@@ -4,4 +4,4 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
-  name: previewenvironmentdefinitions.preview.gitops.phoban.io
+  name: previewenvironmentmanagers.preview.gitops.phoban.io
