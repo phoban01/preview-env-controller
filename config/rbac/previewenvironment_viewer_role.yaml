@@ -1,0 +1,20 @@
+# permissions for end users to view previewenvironments.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: previewenvironment-viewer-role
+rules:
+- apiGroups:
+  - preview.gitops.phoban.io
+  resources:
+  - previewenvironments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - preview.gitops.phoban.io
+  resources:
+  - previewenvironments/status
+  verbs:
+  - get
