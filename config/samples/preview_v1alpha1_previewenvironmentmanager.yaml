@@ -1,0 +1,7 @@
+apiVersion: preview.gitops.phoban.io/v1alpha1
+kind: PreviewEnvironmentManager
+metadata:
+  name: previewenvironmentmanager-sample
+spec:
+  # Add fields here
+  foo: bar

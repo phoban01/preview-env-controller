@@ -1,0 +1,43 @@
+---
+# the repository to use as a source for preview environment templates
+apiVersion: source.toolkit.fluxcd.io/v1beta1
+kind: GitRepository
+metadata:
+  name: sample-app
+  namespace: default
+spec:
+  interval: 1m
+  url: https://github.com/phoban01/sample-app
+  ref:
+    branch: main
+  secretRef:
+    name: gh-token
+---
+apiVersion: preview.gitops.phoban.io/v1alpha1
+kind: PreviewEnvironmentManager
+metadata:
+  name: demo-manager
+  namespace: preview-env-controller-system
+spec:
+  interval: 10s
+  limit: 2
+  # the repository to watch for matching branches
+  watch:
+    url: https://github.com/phoban01/sample-app
+    ref:
+      branch: "main"
+    credentialsRef:
+      name: gh-token
+      namespace: default
+  rules:
+    matchBranch: '^feature-.*'
+  template:
+    prefix: pr-env-
+    kustomization:
+      sourceRef:
+        kind: GitRepository
+        name: sample-app
+        namespace: default
+      path: './preview-template'
+      interval: 5m
+      prune: true

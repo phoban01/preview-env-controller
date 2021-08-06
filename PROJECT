@@ -3,4 +3,41 @@ layout:
 - go.kubebuilder.io/v3
 projectName: preview-env-controller
 repo: github.com/phoban01/preview-env-controller
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: gitops.phoban.io
+  group: preview
+  kind: PreviewEnvironmentDefinition
+  path: github.com/phoban01/preview-env-controller/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: gitops.phoban.io
+  group: preview
+  kind: PreviewEnvironment
+  path: github.com/phoban01/preview-env-controller/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: gitops.phoban.io
+  group: preview
+  kind: PreviewEnvironmentSource
+  path: github.com/phoban01/preview-env-controller/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: gitops.phoban.io
+  group: preview
+  kind: PreviewEnvironmentManager
+  path: github.com/phoban01/preview-env-controller/api/v1alpha1
+  version: v1alpha1
 version: "3"

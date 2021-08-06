@@ -1,0 +1,93 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kustomize.toolkit.fluxcd.io
+  resources:
+  - kustomizations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - preview.gitops.phoban.io
+  resources:
+  - previewenvironmentmanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - preview.gitops.phoban.io
+  resources:
+  - previewenvironmentmanagers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - preview.gitops.phoban.io
+  resources:
+  - previewenvironmentmanagers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - preview.gitops.phoban.io
+  resources:
+  - previewenvironments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - preview.gitops.phoban.io
+  resources:
+  - previewenvironments/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - preview.gitops.phoban.io
+  resources:
+  - previewenvironments/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  resources:
+  - buckets
+  - gitrepositories
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
