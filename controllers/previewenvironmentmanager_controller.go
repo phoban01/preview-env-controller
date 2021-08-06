@@ -23,16 +23,20 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
+	"golang.org/x/oauth2"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	sourcev1 "github.com/fluxcd/source-controller/api/v1beta1"
 	"github.com/google/go-github/github"
 	previewv1alpha1 "github.com/phoban01/preview-env-controller/api/v1alpha1"
 	v1alpha1 "github.com/phoban01/preview-env-controller/api/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // PreviewEnvironmentManagerReconciler reconciles a PreviewEnvironmentManager object
@@ -44,6 +48,7 @@ type PreviewEnvironmentManagerReconciler struct {
 //+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironmentmanagers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironmentmanagers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironmentmanagers/finalizers,verbs=update
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *PreviewEnvironmentManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -70,22 +75,31 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 	log := ctrl.LoggerFrom(ctx)
 
 	// fetch source branches
-	source := &sourcev1.GitRepository{}
-	if err := r.Client.Get(ctx, obj.Spec.SourceRef, source); err != nil {
-		log.Info("source not found", "name", source.Name, "namespace", source.Namespace)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx,
+		types.NamespacedName{
+			Name:      obj.Spec.Watch.CredentialsRef.Name,
+			Namespace: obj.Spec.Watch.CredentialsRef.Namespace,
+		}, secret); err != nil {
+		return ctrl.Result{RequeueAfter: time.Minute * 1}, err
 	}
 
-	branches, err := getBranches(ctx, source.Spec.URL)
+	if _, ok := secret.Data["password"]; !ok {
+		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
+	}
+
+	token := secret.Data["password"]
+
+	branches, err := getBranches(ctx, obj.Spec.Watch.URL, token)
 	if err != nil {
-		return ctrl.Result{}, err
+		log.Info("rate limited by github")
+		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
 	}
 
 	// iterate existing previewenvironment
 	// in the current namespace
 	prEnvs := &v1alpha1.PreviewEnvironmentList{}
 	if err := r.Client.List(ctx, prEnvs, &client.ListOptions{Namespace: obj.GetNamespace()}); err != nil {
-		log.Info("source not found", "name", source.Name, "namespace", source.Namespace)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -103,30 +117,68 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 		}
 	}
 
-	re, err := regexp.Compile(obj.Spec.SpawnRules.MatchBranch)
+	re, err := regexp.Compile(obj.Spec.Rules.MatchBranch)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	// iterate branches
-	for b := range branches {
+	for branch, sha := range branches {
 		// check for matching rules
-		if ok := re.MatchString(b); !ok {
+		if ok := re.MatchString(branch); !ok {
+			log.Info("branch doesn't match rule",
+				"branch", branch,
+				"rule", obj.Spec.Rules.MatchBranch)
 			continue
 		}
+
+		log.Info("branch matches rule",
+			"branch", branch,
+			"rule", obj.Spec.Rules.MatchBranch)
+
 		// create previewenvironment
-		penvName := fmt.Sprintf("%s-%s", obj.Spec.Template.Prefix, b)
-		penv := newPreviewEnvironment(penvName, obj.GetNamespace(), b)
+		if len(prEnvs.Items)-len(gcPrEnvs.Items) > obj.GetLimit() {
+			log.Info("preview environment limit reached")
+			return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, nil
+		}
+		penvName := fmt.Sprintf("%s-%s", strings.TrimSuffix(obj.Spec.Template.Prefix, "-"), branch)
+		penv := &v1alpha1.PreviewEnvironment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      penvName,
+				Namespace: obj.GetNamespace(),
+			},
+			Spec: v1alpha1.PreviewEnvironmentSpec{
+				Branch:        branch,
+				Commit:        sha,
+				Kustomization: obj.Spec.Template.Kustomization,
+			},
+		}
+
 		if err := r.Client.Create(ctx, penv); err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				// if err := r.Update(ctx, penv); err != nil {
+				return ctrl.Result{}, nil
+				// }
+			}
 			return ctrl.Result{}, err
 		}
+		log.Info("preview environment created", "name", penv.GetName(), "namespace", penv.GetNamespace())
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, nil
 }
 
-func getBranches(ctx context.Context, sourceURL string) (map[string]string, error) {
-	c := github.NewClient(http.DefaultClient)
+func getBranches(ctx context.Context, sourceURL string, repoToken []byte) (map[string]string, error) {
+	httpClient := http.DefaultClient
+
+	if repoToken != nil {
+		ts := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: string(repoToken)},
+		)
+		httpClient = oauth2.NewClient(ctx, ts)
+	}
+
+	c := github.NewClient(httpClient)
 
 	owner, repo, err := parseURL(sourceURL)
 	if err != nil {
@@ -146,12 +198,13 @@ func getBranches(ctx context.Context, sourceURL string) (map[string]string, erro
 
 	return branches, nil
 }
+
 func parseURL(repoURL string) (string, string, error) {
 	u, err := url.Parse(repoURL)
 	if err != nil {
 		return "", "", err
 	}
-	p := strings.Split(u.Path, "/")
+	p := strings.Split(strings.TrimLeft(u.Path, "/"), "/")
 
 	owner := p[0]
 
@@ -159,16 +212,4 @@ func parseURL(repoURL string) (string, string, error) {
 
 	return owner, repo, nil
 
-}
-
-func newPreviewEnvironment(name, namespace, branch string) *v1alpha1.PreviewEnvironment {
-	return &v1alpha1.PreviewEnvironment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: v1alpha1.PreviewEnvironmentSpec{
-			Branch: branch,
-		},
-	}
 }

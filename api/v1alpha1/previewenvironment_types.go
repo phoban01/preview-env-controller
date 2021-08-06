@@ -17,16 +17,23 @@ limitations under the License.
 package v1alpha1
 
 import (
+	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // PreviewEnvironmentSpec defines the desired state of PreviewEnvironment
 type PreviewEnvironmentSpec struct {
 	// Branch
-	Branch string `json:"branch,omitempty"`
+	// +required
+	Branch string `json:"branch"`
+
+	// Commit
+	// +required
+	Commit string `json:"commit"`
+
+	// Kustomization
+	// +required
+	Kustomization kustomizev1.KustomizationSpec `json:"kustomization"`
 }
 
 // PreviewEnvironmentStatus defines the observed state of PreviewEnvironment
@@ -38,6 +45,19 @@ type PreviewEnvironmentStatus struct {
 	// Conditions holds the conditions for the GitRepository.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+func (in PreviewEnvironment) GetKustomizationSpec() kustomizev1.KustomizationSpec {
+	return in.Spec.Kustomization
+}
+
+func (in *PreviewEnvironment) SetKustomizeSubstitution(key, value string) {
+	if in.Spec.Kustomization.PostBuild == nil {
+		in.Spec.Kustomization.PostBuild = &kustomizev1.PostBuild{
+			Substitute: make(map[string]string),
+		}
+	}
+	in.Spec.Kustomization.PostBuild.Substitute[key] = value
 }
 
 //+kubebuilder:object:root=true
