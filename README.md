@@ -22,17 +22,19 @@ controllers are very primitive without any safeguards and many features have bee
 
 ### Instructions
 
- -1. Ensure you have a local `kind` cluster running (https://kind.sigs.k8s.io/docs/user/quick-start/)
+1. Ensure you have a local `kind` cluster running (https://kind.sigs.k8s.io/docs/user/quick-start/)
 
-0. Ensure you have the flux components installed (https://fluxcd.io/docs/installation/)
+2. Ensure you have the flux components installed (https://fluxcd.io/docs/installation/)
 
-1. Create a secret with your GitHub credentials `$ ./scripts/create_gh_secret.sh`
+3. Create a secret with your GitHub credentials `$ ./scripts/create_gh_secret.sh`
 
-2. Install the CRDs `$ make install`
+4. Install the CRDs `$ make install`
 
-3. Create a `PreviewEnvironmentManager` `$ kubectl apply -f examples/preview-env-manager.yaml`
+5. Deploy the controller `$ make deploy`
 
-4. Verify the environment has been created `$ kubectl get previewenvironments -A`
+6. Create a `PreviewEnvironmentManager` `$ kubectl apply -f examples/preview-env-manager.yaml`
 
-5. Verify the deployment `$ kubectl -n default get deploy server -oyaml`
+7. Verify the environment has been created `$ kubectl get previewenvironments -A`
+
+8. Verify the deployment `$ kubectl -n default get deploy server -oyaml`
 
