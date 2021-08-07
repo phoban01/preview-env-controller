@@ -64,31 +64,33 @@ func (r *PreviewEnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 func (r *PreviewEnvironmentReconciler) reconcile(ctx context.Context, obj *v1alpha1.PreviewEnvironment) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx)
+	manager := &v1alpha1.PreviewEnvironmentManager{}
+	if err := r.Client.Get(ctx, types.NamespacedName{
+		Name:      metav1.GetControllerOf(obj).Name,
+		Namespace: obj.GetNamespace(),
+	}, manager); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
-	log.Info("reconciling")
+	if err := r.reconcileGitRepository(ctx, obj, manager); err != nil {
+		return ctrl.Result{}, err
+	}
 
-	if err := r.reconcileGitRepository(ctx, obj); err != nil {
+	if err := r.reconcileKustomization(ctx, obj, manager); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
 
-func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Context, obj *v1alpha1.PreviewEnvironment) error {
+func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Context, obj *v1alpha1.PreviewEnvironment, manager *v1alpha1.PreviewEnvironmentManager) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	//should check are there any gitrepos
-	//owned by this resource and if not
-	//create one
-	controllerRef := metav1.GetControllerOf(obj)
-	manager := &v1alpha1.PreviewEnvironmentManager{}
-	if err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      controllerRef.Name,
-		Namespace: obj.GetNamespace(),
-	}, manager); err != nil {
-		return client.IgnoreNotFound(err)
-	}
+	defer func() {
+		if err := r.Client.Status().Update(ctx, obj); err != nil {
+			log.Error(err, "error updating status")
+		}
+	}()
 
 	if obj.Status.GitRepository == nil {
 		gitRepo := &sourcev1.GitRepository{
@@ -119,10 +121,6 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 			Namespace: gitRepo.Namespace,
 		}
 
-		if err := r.Client.Status().Update(ctx, obj); err != nil {
-			log.Error(err, "error updating status")
-		}
-
 		return nil
 	}
 
@@ -133,7 +131,8 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 
 	if curRepo.Spec.URL == manager.Spec.Watch.URL &&
 		curRepo.Spec.SecretRef.Name == manager.Spec.Watch.CredentialsRef.Name &&
-		curRepo.Spec.Interval == manager.Spec.Template.SourceSpec.Interval {
+		curRepo.Spec.Interval == manager.Spec.Template.SourceSpec.Interval &&
+		curRepo.Status.Artifact.Revision == obj.Status.Commit {
 		return nil
 	}
 
@@ -141,6 +140,8 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 	newRepo.Spec.URL = manager.Spec.Watch.URL
 	newRepo.Spec.SecretRef = manager.Spec.Watch.CredentialsRef.DeepCopy()
 	newRepo.Spec.Interval = manager.Spec.Template.SourceSpec.Interval
+
+	obj.Status.Commit = curRepo.Status.Artifact.Revision
 
 	return r.Client.Patch(ctx, curRepo, client.MergeFrom(newRepo))
 }
@@ -158,22 +159,64 @@ func (r *PreviewEnvironmentReconciler) getGitRepo(ctx context.Context, obj *v1al
 	return repo, nil
 }
 
-func (r *PreviewEnvironmentReconciler) reconcileKustomization(ctx context.Context, obj *v1alpha1.PreviewEnvironment) (ctrl.Result, error) {
+func (r *PreviewEnvironmentReconciler) reconcileKustomization(ctx context.Context, obj *v1alpha1.PreviewEnvironment, manager *v1alpha1.PreviewEnvironmentManager) error {
 	log := ctrl.LoggerFrom(ctx)
+
+	if obj.Status.Commit == "" {
+		return nil
+	}
+
+	if obj.Status.Kustomization == nil {
+		kustomization := &kustomizev1.Kustomization{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      obj.Name,
+				Namespace: obj.Namespace,
+			},
+			Spec: kustomizev1.KustomizationSpec{
+				SourceRef: kustomizev1.CrossNamespaceSourceReference{
+					Kind:      "GitRepository",
+					Namespace: obj.Status.GitRepository.Namespace,
+					Name:      obj.Status.GitRepository.Name,
+				},
+				Path:     manager.Spec.Template.KustomizationSpec.Path,
+				Prune:    manager.Spec.Template.KustomizationSpec.Prune,
+				Interval: manager.Spec.Template.KustomizationSpec.Interval,
+				PostBuild: &kustomizev1.PostBuild{
+					Substitute: map[string]string{
+						"branch": obj.Spec.Branch,
+						"commit": obj.Status.Commit,
+					},
+				},
+			},
+		}
+		if err := ctrl.SetControllerReference(obj, kustomization, r.Scheme); err != nil {
+			return err
+		}
+		if err := r.Client.Create(ctx, kustomization); err != nil {
+			log.Error(err, "error creating kustomization")
+			return err
+		}
+		obj.Status.Kustomization = &meta.NamespacedObjectReference{
+			Namespace: kustomization.Namespace,
+			Name:      kustomization.Name,
+		}
+
+		if err := r.Client.Status().Update(ctx, obj); err != nil {
+			log.Error(err, "error updating status")
+		}
+
+		return nil
+	}
 
 	// obj.SetKustomizeSubstitution("branch", obj.Spec.Branch)
 	// obj.SetKustomizeSubstitution("commit", obj.Spec.Commit)
 
-	kustomization := &kustomizev1.Kustomization{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      obj.GetName(),
-			Namespace: obj.GetNamespace(),
-		},
-	}
-	if err := r.Client.Create(ctx, kustomization); err != nil {
-		log.Error(err, "error creating Kustomization")
-		return ctrl.Result{}, err
-	}
+	// kustomization := &kustomizev1.Kustomization{
+	//     ObjectMeta: metav1.ObjectMeta{
+	//         Name:      obj.GetName(),
+	//         Namespace: obj.GetNamespace(),
+	//     },
+	// }
 
 	// kustomization := &kustomizev1.Kustomization{}
 	// if err := r.Client.Get(ctx, req, kustomization); err != nil {
@@ -189,7 +232,7 @@ func (r *PreviewEnvironmentReconciler) reconcileKustomization(ctx context.Contex
 	//     log.Error(err, "error updating Kustomization")
 	//     return ctrl.Result{}, err
 	// }
-	return ctrl.Result{}, nil
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

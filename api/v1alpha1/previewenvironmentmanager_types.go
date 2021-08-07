@@ -42,6 +42,10 @@ type PreviewEnvironmentManagerSpec struct {
 
 	// +optional
 	Limit int `json:"limit,omitempty"`
+
+	// +kubebuilder:default:=true
+	// +optional
+	Prune bool `json:"prune"`
 }
 
 // WatchObject defines a repository to watch
@@ -116,6 +120,8 @@ type PreviewEnvironmentManagerStatus struct {
 	// Conditions holds the conditions for the GitRepository.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	EnvironmentCount int `json:"environmentCount"`
 }
 
 // GetLimitl Returns the reconcilation interval
@@ -128,6 +134,13 @@ func (in *PreviewEnvironmentManager) GetInterval() metav1.Duration {
 	return in.Spec.Interval
 }
 
+// GetEnvironmentCount returns the number of active preview environments
+func (in *PreviewEnvironmentManager) GetEnvironmentCount() int {
+	return in.Status.EnvironmentCount
+}
+
+//+kubebuilder:printcolumn:name="Count",type=integer,JSONPath=`.status.environmentCount`
+//+kubebuilder:resource:shortName=pman
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 

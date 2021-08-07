@@ -13,10 +13,22 @@ spec:
     kind: PreviewEnvironment
     listKind: PreviewEnvironmentList
     plural: previewenvironments
+    shortNames:
+    - penv
     singular: previewenvironment
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.branch
+      name: Branch
+      type: string
+    - jsonPath: .status.commit
+      name: Commit
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: PreviewEnvironment is the Schema for the previewenvironments
@@ -46,6 +58,9 @@ spec:
           status:
             description: PreviewEnvironmentStatus defines the observed state of PreviewEnvironment
             properties:
+              commit:
+                description: Commit
+                type: string
               conditions:
                 description: Conditions holds the conditions for the GitRepository.
                 items:

@@ -47,10 +47,18 @@ type PreviewEnvironmentStatus struct {
 	// Kustomization
 	// +optional
 	Kustomization *meta.NamespacedObjectReference `json:"kustomization,omitempty"`
+
+	// Commit
+	// +optional
+	Commit string `json:"commit,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Branch",type=string,JSONPath=`.spec.branch`
+// +kubebuilder:printcolumn:name="Commit",type=string,JSONPath=`.status.commit`
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:resource:shortName=penv
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // PreviewEnvironment is the Schema for the previewenvironments API
 type PreviewEnvironment struct {

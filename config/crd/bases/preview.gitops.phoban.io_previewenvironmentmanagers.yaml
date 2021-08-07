@@ -13,10 +13,16 @@ spec:
     kind: PreviewEnvironmentManager
     listKind: PreviewEnvironmentManagerList
     plural: previewenvironmentmanagers
+    shortNames:
+    - pman
     singular: previewenvironmentmanager
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.environmentCount
+      name: Count
+      type: integer
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: PreviewEnvironmentManager is the Schema for the previewenvironmentmanagers
@@ -42,6 +48,9 @@ spec:
                 type: string
               limit:
                 type: integer
+              prune:
+                default: true
+                type: boolean
               rules:
                 description: Rules define the rules that determine which branches
                   will create a PreviewEnvironment
@@ -202,10 +211,14 @@ spec:
                   - type
                   type: object
                 type: array
+              environmentCount:
+                type: integer
               observedGeneration:
                 description: ObservedGeneration is the last observed generation.
                 format: int64
                 type: integer
+            required:
+            - environmentCount
             type: object
         type: object
     served: true
