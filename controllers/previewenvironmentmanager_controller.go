@@ -62,9 +62,10 @@ func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req
 	log := ctrl.LoggerFrom(ctx)
 
 	obj := &v1alpha1.PreviewEnvironmentManager{}
-
 	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
-		log.Info("object not found", "name", req.NamespacedName.Name, "namespace", req.NamespacedName.Namespace)
+		log.Info("object not found",
+			"namespace", req.NamespacedName.Namespace,
+			"name", req.NamespacedName.Name)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -79,7 +80,7 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 	if err := r.Get(ctx,
 		types.NamespacedName{
 			Name:      obj.Spec.Watch.CredentialsRef.Name,
-			Namespace: obj.Spec.Watch.CredentialsRef.Namespace,
+			Namespace: obj.Namespace,
 		}, secret); err != nil {
 		return ctrl.Result{RequeueAfter: time.Minute * 1}, err
 	}
@@ -88,25 +89,38 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
 	}
 
-	token := secret.Data["password"]
-
-	branches, err := getBranches(ctx, obj.Spec.Watch.URL, token)
+	log.Info("Found token", "token", secret.Data["password"])
+	branches, err := getBranches(ctx, obj.Spec.Watch.URL, secret.Data["password"])
 	if err != nil {
 		log.Info("rate limited by github")
 		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
 	}
 
-	// iterate existing previewenvironment
-	// in the current namespace
+	// get previewenvironments managed by thie manager
+	// should use controllerRef
 	prEnvs := &v1alpha1.PreviewEnvironmentList{}
 	if err := r.Client.List(ctx, prEnvs, &client.ListOptions{Namespace: obj.GetNamespace()}); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	re, err := regexp.Compile(obj.Spec.Rules.MatchBranch)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// if branch is missing then delete previewenvironment
+	// or doesn't match current rule
 	gcPrEnvs := &v1alpha1.PreviewEnvironmentList{}
 	for _, p := range prEnvs.Items {
 		if _, ok := branches[p.Spec.Branch]; !ok {
+			gcPrEnvs.Items = append(gcPrEnvs.Items, p)
+		}
+
+		// TODO: make configurable via Prune field
+		if ok := re.MatchString(p.Spec.Branch); !ok {
+			log.Info("Existing environment branch no longer matches rule",
+				"branch", p.Spec.Branch,
+				"rule", obj.Spec.Rules.MatchBranch)
 			gcPrEnvs.Items = append(gcPrEnvs.Items, p)
 		}
 	}
@@ -115,11 +129,6 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 		if err := r.Client.Delete(ctx, &p); err != nil {
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
-	}
-
-	re, err := regexp.Compile(obj.Spec.Rules.MatchBranch)
-	if err != nil {
-		return ctrl.Result{}, err
 	}
 
 	// iterate branches
@@ -141,28 +150,11 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 			log.Info("preview environment limit reached")
 			return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, nil
 		}
-		penvName := fmt.Sprintf("%s-%s", strings.TrimSuffix(obj.Spec.Template.Prefix, "-"), branch)
-		penv := &v1alpha1.PreviewEnvironment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      penvName,
-				Namespace: obj.GetNamespace(),
-			},
-			Spec: v1alpha1.PreviewEnvironmentSpec{
-				Branch:        branch,
-				Commit:        sha,
-				Kustomization: obj.Spec.Template.Kustomization,
-			},
-		}
 
-		if err := r.Client.Create(ctx, penv); err != nil {
-			if apierrors.IsAlreadyExists(err) {
-				// if err := r.Update(ctx, penv); err != nil {
-				return ctrl.Result{}, nil
-				// }
-			}
+		if err := r.reconcilePreviewEnv(ctx, obj, branch, sha); err != nil {
+			log.Info("error reconciling preview env")
 			return ctrl.Result{}, err
 		}
-		log.Info("preview environment created", "name", penv.GetName(), "namespace", penv.GetNamespace())
 	}
 
 	return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, nil
@@ -205,11 +197,65 @@ func parseURL(repoURL string) (string, string, error) {
 		return "", "", err
 	}
 	p := strings.Split(strings.TrimLeft(u.Path, "/"), "/")
-
 	owner := p[0]
-
 	repo := strings.TrimSuffix(p[1], ".git")
-
 	return owner, repo, nil
+}
 
+func (r *PreviewEnvironmentManagerReconciler) reconcilePreviewEnv(ctx context.Context, obj *v1alpha1.PreviewEnvironmentManager, branch, sha string) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	name := fmt.Sprintf("%s-%s", strings.TrimSuffix(obj.Spec.Template.Prefix, "-"), branch)
+
+	//check if exists
+	//TODO: refactor this to use cache
+	if r.previewEnvExists(ctx, name, obj.Namespace) != true {
+		log.Info("creating preview environment", "name", name)
+		return r.createPreviewEnv(ctx, name, branch, obj)
+	}
+
+	log.Info("preview environment exists", "name", name)
+
+	return nil
+}
+
+//TODO: refactor this to use cache
+func (r *PreviewEnvironmentManagerReconciler) previewEnvExists(ctx context.Context, name, namespace string) bool {
+	err := r.Client.Get(ctx, types.NamespacedName{
+		Name:      name,
+		Namespace: namespace,
+	}, &v1alpha1.PreviewEnvironment{})
+
+	return apierrors.IsNotFound(err) != true
+}
+
+func (r *PreviewEnvironmentManagerReconciler) createPreviewEnv(
+	ctx context.Context,
+	name,
+	branch string,
+	obj *v1alpha1.PreviewEnvironmentManager) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	newEnv := &v1alpha1.PreviewEnvironment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: obj.Namespace,
+		},
+		Spec: v1alpha1.PreviewEnvironmentSpec{
+			Branch: branch,
+		},
+	}
+
+	if err := ctrl.SetControllerReference(obj, newEnv, r.Scheme); err != nil {
+		return err
+	}
+
+	if err := r.Client.Create(ctx, newEnv); err != nil {
+		log.Info("error creating preview environment", "name", name)
+		return err
+	}
+
+	log.Info("preview environment created", "name", name)
+
+	return nil
 }

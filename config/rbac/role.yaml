@@ -81,7 +81,6 @@ rules:
 - apiGroups:
   - source.toolkit.fluxcd.io
   resources:
-  - buckets
   - gitrepositories
   verbs:
   - create
@@ -91,3 +90,13 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  resources:
+  - gitrepositories/finalizers
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update

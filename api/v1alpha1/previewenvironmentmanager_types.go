@@ -17,9 +17,11 @@ limitations under the License.
 package v1alpha1
 
 import (
-	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta1"
+	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+var PreviewEnvironmentManagerKind = "PreviewEnvironmentManager"
 
 // PreviewEnvironmentManagerSpec defines the desired state of PreviewEnvironmentManager
 type PreviewEnvironmentManagerSpec struct {
@@ -52,7 +54,7 @@ type WatchObject struct {
 	Ref Ref `json:"ref"`
 
 	// +required
-	CredentialsRef ObjectReference `json:"credentialsRef"`
+	CredentialsRef meta.LocalObjectReference `json:"credentialsRef"`
 }
 
 type Ref struct {
@@ -62,12 +64,37 @@ type Ref struct {
 
 // TemplateSpec defines the type of PreviewEnvironments that will be created
 type TemplateSpec struct {
-	// Kustomization
+	// KustomizationSpec
 	// +required
-	Kustomization kustomizev1.KustomizationSpec `json:"kustomization"`
+	KustomizationSpec KustomizationSpec `json:"kustomizationSpec"`
+
+	// SourceSpec
+	// +optional
+	SourceSpec SourceSpec `json:"sourceSpec"`
 
 	// +optional
 	Prefix string `json:"prefix,omitempty"`
+}
+
+type KustomizationSpec struct {
+	// +required
+	Path string `json:"path"`
+
+	// +required
+	Interval metav1.Duration `json:"interval"`
+
+	// +kubebuilder:default:=true
+	// +optional
+	Prune bool `json:"prune"`
+}
+
+type SourceSpec struct {
+	// +kubebuilder:default:='1m'
+	// +optional
+	Interval metav1.Duration `json:"interval"`
+
+	// +optional
+	SecretRef *meta.LocalObjectReference `json:"secretRef"`
 }
 
 // Rules define the rules that determine which branches will
@@ -89,14 +116,6 @@ type PreviewEnvironmentManagerStatus struct {
 	// Conditions holds the conditions for the GitRepository.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
-
-type ObjectReference struct {
-	// +required
-	Name string `json:"name"`
-
-	// +required
-	Namespace string `json:"namespace"`
 }
 
 // GetLimitl Returns the reconcilation interval

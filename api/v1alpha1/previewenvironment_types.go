@@ -17,23 +17,17 @@ limitations under the License.
 package v1alpha1
 
 import (
-	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta1"
+	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+var PreviewEnvironmentKind = "PreviewEnvironment"
 
 // PreviewEnvironmentSpec defines the desired state of PreviewEnvironment
 type PreviewEnvironmentSpec struct {
 	// Branch
 	// +required
 	Branch string `json:"branch"`
-
-	// Commit
-	// +required
-	Commit string `json:"commit"`
-
-	// Kustomization
-	// +required
-	Kustomization kustomizev1.KustomizationSpec `json:"kustomization"`
 }
 
 // PreviewEnvironmentStatus defines the observed state of PreviewEnvironment
@@ -45,19 +39,14 @@ type PreviewEnvironmentStatus struct {
 	// Conditions holds the conditions for the GitRepository.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
 
-func (in PreviewEnvironment) GetKustomizationSpec() kustomizev1.KustomizationSpec {
-	return in.Spec.Kustomization
-}
+	// GitRepository
+	// +optional
+	GitRepository *meta.NamespacedObjectReference `json:"gitRepository,omitempty"`
 
-func (in *PreviewEnvironment) SetKustomizeSubstitution(key, value string) {
-	if in.Spec.Kustomization.PostBuild == nil {
-		in.Spec.Kustomization.PostBuild = &kustomizev1.PostBuild{
-			Substitute: make(map[string]string),
-		}
-	}
-	in.Spec.Kustomization.PostBuild.Substitute[key] = value
+	// Kustomization
+	// +optional
+	Kustomization *meta.NamespacedObjectReference `json:"kustomization,omitempty"`
 }
 
 //+kubebuilder:object:root=true
