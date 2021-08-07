@@ -14,11 +14,11 @@ with the branch name and commit SHA substituted by the controller.
 
 Rules could be extended to match Pull Request status, comments, labels or tags etc...
 
-Under the hood this makes use of FLux and the GitOps toolkit components.
+Under the hood this makes use of Flux and the GitOps Toolkit components.
 
 ### Caveats
 Please do not use this in production. This is very much a proof of concept and the
-controllers are very primitive without any safeguards and many features have been ignored (namespaces are not yet created per environment for instance).
+controllers are very primitive without many safeguards and no tests.
 
 ### Instructions
 
