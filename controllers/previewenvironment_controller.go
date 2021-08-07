@@ -23,11 +23,13 @@ import (
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta1"
 	"github.com/fluxcd/pkg/apis/meta"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	previewv1alpha1 "github.com/phoban01/preview-env-controller/api/v1alpha1"
 	v1alpha1 "github.com/phoban01/preview-env-controller/api/v1alpha1"
@@ -44,6 +46,7 @@ type PreviewEnvironmentReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+//+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironments/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=preview.gitops.phoban.io,resources=previewenvironments/finalizers,verbs=update
@@ -60,6 +63,35 @@ func (r *PreviewEnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if obj.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(obj, finalizerName) {
+			controllerutil.AddFinalizer(obj, finalizerName)
+			if err := r.Update(ctx, obj); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(obj, finalizerName) {
+			if obj.Spec.CreateNamespace {
+				ns := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: obj.Status.EnvNamespace,
+					},
+				}
+				if err := r.Client.Delete(ctx, ns); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+
+			controllerutil.RemoveFinalizer(obj, finalizerName)
+			if err := r.Update(ctx, obj); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
+	}
+
 	return r.reconcile(ctx, obj)
 }
 
@@ -72,6 +104,12 @@ func (r *PreviewEnvironmentReconciler) reconcile(ctx context.Context, obj *v1alp
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if obj.Spec.CreateNamespace {
+		if err := r.reconcileNamespace(ctx, obj, manager); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	if err := r.reconcileGitRepository(ctx, obj, manager); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -81,6 +119,32 @@ func (r *PreviewEnvironmentReconciler) reconcile(ctx context.Context, obj *v1alp
 	}
 
 	return ctrl.Result{RequeueAfter: time.Minute}, nil
+}
+
+func (r *PreviewEnvironmentReconciler) reconcileNamespace(ctx context.Context, obj *v1alpha1.PreviewEnvironment, manager *v1alpha1.PreviewEnvironmentManager) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	if obj.Status.EnvNamespace == "" {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: obj.Name,
+			},
+		}
+
+		if err := r.Client.Create(ctx, ns); err != nil {
+			log.Error(err, "error creating namespace")
+			return err
+		}
+
+		obj.Status.EnvNamespace = obj.Name
+
+		if err := r.Client.Status().Update(ctx, obj); err != nil {
+			log.Error(err, "error updating status")
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Context, obj *v1alpha1.PreviewEnvironment, manager *v1alpha1.PreviewEnvironmentManager) error {
@@ -129,6 +193,8 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 		return err
 	}
 
+	//TODO: fix the following: can result in nil errors
+	//until the revision is ready
 	if curRepo.Spec.URL == manager.Spec.Watch.URL &&
 		curRepo.Spec.SecretRef.Name == manager.Spec.Watch.CredentialsRef.Name &&
 		curRepo.Spec.Interval == manager.Spec.Template.SourceSpec.Interval &&
@@ -149,8 +215,8 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 func (r *PreviewEnvironmentReconciler) getGitRepo(ctx context.Context, obj *v1alpha1.PreviewEnvironment) (*sourcev1.GitRepository, error) {
 	repo := &sourcev1.GitRepository{}
 	req := types.NamespacedName{
-		Name:      obj.Status.GitRepository.Name,
 		Namespace: obj.Status.GitRepository.Namespace,
+		Name:      obj.Status.GitRepository.Name,
 	}
 	if err := r.Client.Get(ctx, req, repo); err != nil {
 		return nil, err
@@ -167,20 +233,26 @@ func (r *PreviewEnvironmentReconciler) reconcileKustomization(ctx context.Contex
 	}
 
 	if obj.Status.Kustomization == nil {
+		var sourceRef *kustomizev1.CrossNamespaceSourceReference
+		if manager.Spec.Template.KustomizationSpec.SourceRef == nil {
+			sourceRef = &kustomizev1.CrossNamespaceSourceReference{
+				Kind:      "GitRepository",
+				Namespace: obj.Namespace,
+				Name:      obj.Status.GitRepository.Name,
+			}
+		} else {
+			sourceRef = manager.Spec.Template.KustomizationSpec.SourceRef
+		}
 		kustomization := &kustomizev1.Kustomization{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      obj.Name,
 				Namespace: obj.Namespace,
+				Name:      obj.Name,
 			},
 			Spec: kustomizev1.KustomizationSpec{
-				SourceRef: kustomizev1.CrossNamespaceSourceReference{
-					Kind:      "GitRepository",
-					Namespace: obj.Status.GitRepository.Namespace,
-					Name:      obj.Status.GitRepository.Name,
-				},
-				Path:     manager.Spec.Template.KustomizationSpec.Path,
-				Prune:    manager.Spec.Template.KustomizationSpec.Prune,
-				Interval: manager.Spec.Template.KustomizationSpec.Interval,
+				SourceRef: *sourceRef,
+				Path:      manager.Spec.Template.KustomizationSpec.Path,
+				Prune:     manager.Spec.Template.KustomizationSpec.Prune,
+				Interval:  manager.Spec.Template.KustomizationSpec.Interval,
 				PostBuild: &kustomizev1.PostBuild{
 					Substitute: map[string]string{
 						"branch": obj.Spec.Branch,
@@ -189,13 +261,21 @@ func (r *PreviewEnvironmentReconciler) reconcileKustomization(ctx context.Contex
 				},
 			},
 		}
+
+		if obj.Spec.CreateNamespace {
+			kustomization.Spec.TargetNamespace = obj.Status.EnvNamespace
+			kustomization.Spec.PostBuild.Substitute["namespace"] = obj.Status.EnvNamespace
+		}
+
 		if err := ctrl.SetControllerReference(obj, kustomization, r.Scheme); err != nil {
 			return err
 		}
+
 		if err := r.Client.Create(ctx, kustomization); err != nil {
 			log.Error(err, "error creating kustomization")
 			return err
 		}
+
 		obj.Status.Kustomization = &meta.NamespacedObjectReference{
 			Namespace: kustomization.Namespace,
 			Name:      kustomization.Name,
@@ -208,30 +288,6 @@ func (r *PreviewEnvironmentReconciler) reconcileKustomization(ctx context.Contex
 		return nil
 	}
 
-	// obj.SetKustomizeSubstitution("branch", obj.Spec.Branch)
-	// obj.SetKustomizeSubstitution("commit", obj.Spec.Commit)
-
-	// kustomization := &kustomizev1.Kustomization{
-	//     ObjectMeta: metav1.ObjectMeta{
-	//         Name:      obj.GetName(),
-	//         Namespace: obj.GetNamespace(),
-	//     },
-	// }
-
-	// kustomization := &kustomizev1.Kustomization{}
-	// if err := r.Client.Get(ctx, req, kustomization); err != nil {
-	//     if apierrors.IsNotFound(err) {
-	//     } else {
-	//         return ctrl.Result{}, err
-	//     }
-	// }
-
-	// kustomization.Spec = obj.GetKustomizationSpec()
-	//
-	// if err := r.Client.Update(ctx, kustomization); err != nil {
-	//     log.Error(err, "error updating Kustomization")
-	//     return ctrl.Result{}, err
-	// }
 	return nil
 }
 

@@ -17,6 +17,7 @@ spec:
   rules:
     matchBranch: '^feature-.*'
   template:
+    createNamespace: true
     prefix: pr-env-
     kustomizationSpec:
       path: './preview-template'

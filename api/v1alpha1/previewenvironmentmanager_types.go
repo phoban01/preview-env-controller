@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta1"
 	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -78,6 +79,12 @@ type TemplateSpec struct {
 
 	// +optional
 	Prefix string `json:"prefix,omitempty"`
+
+	// +optional
+	CreateNamespace bool `json:"createNamespace"`
+
+	// +optional
+	TargetNamespace string `json:"targetNamespace"`
 }
 
 type KustomizationSpec struct {
@@ -90,6 +97,9 @@ type KustomizationSpec struct {
 	// +kubebuilder:default:=true
 	// +optional
 	Prune bool `json:"prune"`
+
+	// +optional
+	SourceRef *kustomizev1.CrossNamespaceSourceReference `json:"sourceRef"`
 }
 
 type SourceSpec struct {

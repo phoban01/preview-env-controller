@@ -19,15 +19,18 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     - jsonPath: .spec.branch
       name: Branch
       type: string
     - jsonPath: .status.commit
       name: Commit
       type: string
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
+    - jsonPath: .status.envNamespace
+      name: Namespace
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -52,8 +55,11 @@ spec:
               branch:
                 description: Branch
                 type: string
+              createNamespace:
+                type: boolean
             required:
             - branch
+            - createNamespace
             type: object
           status:
             description: PreviewEnvironmentStatus defines the observed state of PreviewEnvironment
@@ -131,6 +137,9 @@ spec:
                   - type
                   type: object
                 type: array
+              envNamespace:
+                description: EnvNamespace
+                type: string
               gitRepository:
                 description: GitRepository
                 properties:

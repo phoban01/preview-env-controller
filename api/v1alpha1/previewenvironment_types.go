@@ -28,6 +28,9 @@ type PreviewEnvironmentSpec struct {
 	// Branch
 	// +required
 	Branch string `json:"branch"`
+
+	// +required
+	CreateNamespace bool `json:"createNamespace"`
 }
 
 // PreviewEnvironmentStatus defines the observed state of PreviewEnvironment
@@ -51,11 +54,20 @@ type PreviewEnvironmentStatus struct {
 	// Commit
 	// +optional
 	Commit string `json:"commit,omitempty"`
+
+	// EnvNamespace
+	// +optional
+	EnvNamespace string `json:"envNamespace,omitempty"`
 }
 
+func (in *PreviewEnvironment) GetEnvNamespace() string {
+	return in.Namespace
+}
+
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:printcolumn:name="Branch",type=string,JSONPath=`.spec.branch`
 // +kubebuilder:printcolumn:name="Commit",type=string,JSONPath=`.status.commit`
-// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:printcolumn:name="Namespace",type=string,JSONPath=`.status.envNamespace`
 // +kubebuilder:resource:shortName=penv
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

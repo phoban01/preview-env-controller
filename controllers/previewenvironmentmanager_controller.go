@@ -106,7 +106,7 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 
 	branches, err := getBranches(ctx, obj.Spec.Watch.URL, secret.Data["password"])
 	if err != nil {
-		log.Info("rate limited by github")
+		log.Info("rate limited by github", "error", err.Error())
 		return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
 	}
 
@@ -261,11 +261,12 @@ func (r *PreviewEnvironmentManagerReconciler) createPreviewEnv(
 
 	newEnv := &v1alpha1.PreviewEnvironment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
 			Namespace: obj.Namespace,
+			Name:      name,
 		},
 		Spec: v1alpha1.PreviewEnvironmentSpec{
-			Branch: branch,
+			Branch:          branch,
+			CreateNamespace: obj.Spec.Template.CreateNamespace,
 		},
 	}
 
