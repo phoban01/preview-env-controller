@@ -2,12 +2,11 @@
 apiVersion: preview.gitops.phoban.io/v1alpha1
 kind: PreviewEnvironmentManager
 metadata:
-  name: demo-manager
+  name: demo-branch-manager
   namespace: preview-env-controller-system
 spec:
-  interval: 1m
+  interval: 2m
   limit: 2
-  # the repository to watch for matching branches
   watch:
     url: https://github.com/phoban01/sample-app
     ref:
@@ -15,22 +14,12 @@ spec:
     credentialsRef:
       name: gh-token
   strategy:
-    # type: PullRequest
     type: Branch
-    # empty rules matches all
     rules:
-      # branch
       match: '^feature-.*$'
-      # pull-request
-      draft: false
   template:
-    # setting this will also set target namespace on the
-    # kustomization (currentl sets target but should override and allow for target
-    # to be set here)
     prefix: pr-env-
-    # interval will be passed to both any template
     interval: 1m
-    # resources created
     createNamespace: true
     kustomizationSpec:
       path: './preview-template'

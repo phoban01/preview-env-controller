@@ -1,0 +1,26 @@
+---
+apiVersion: preview.gitops.phoban.io/v1alpha1
+kind: PreviewEnvironmentManager
+metadata:
+  name: demo-branch-manager
+  namespace: preview-env-controller-system
+spec:
+  interval: 2m
+  limit: 2
+  watch:
+    url: https://github.com/phoban01/sample-app
+    ref:
+      branch: "main"
+    credentialsRef:
+      name: gh-token
+  strategy:
+    type: PullRequest
+    rules:
+      draft: false
+  template:
+    prefix: pr-env-
+    interval: 1m
+    createNamespace: true
+    kustomizationSpec:
+      path: './preview-template'
+      prune: true
