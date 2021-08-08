@@ -13,20 +13,21 @@ func (r *PreviewEnvironmentManagerReconciler) branchMatchingStrategy(
 	obj *v1alpha1.PreviewEnvironmentManager,
 	existingEnvs *v1alpha1.PreviewEnvironmentList,
 	newEnvs map[string]string,
-	gcEnvs []v1alpha1.PreviewEnvironment,
-) error {
+) ([]v1alpha1.PreviewEnvironment, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	branches, err := r.listBranches(ctx, obj)
 	if err != nil {
 		log.Info("failed to list branches", "error", err.Error())
-		return err
+		return nil, err
 	}
 
 	re, err := regexp.Compile(obj.Spec.Strategy.Rules.Match)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	var gcEnvs []v1alpha1.PreviewEnvironment
 
 	if obj.Spec.Prune {
 		for _, p := range existingEnvs.Items {
@@ -60,7 +61,7 @@ func (r *PreviewEnvironmentManagerReconciler) branchMatchingStrategy(
 		newEnvs[branch] = sha
 	}
 
-	return nil
+	return gcEnvs, nil
 }
 
 func (r *PreviewEnvironmentManagerReconciler) pullRequestMatchingStrategy(
@@ -68,15 +69,16 @@ func (r *PreviewEnvironmentManagerReconciler) pullRequestMatchingStrategy(
 	obj *v1alpha1.PreviewEnvironmentManager,
 	existingEnvs *v1alpha1.PreviewEnvironmentList,
 	newEnvs map[string]string,
-	gcEnvs []v1alpha1.PreviewEnvironment,
-) error {
+) ([]v1alpha1.PreviewEnvironment, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	pullRequests, err := r.listPullRequests(ctx, obj)
 	if err != nil {
 		log.Info("failed to list pull requests", "error", err.Error())
-		return err
+		return nil, err
 	}
+
+	var gcEnvs []v1alpha1.PreviewEnvironment
 
 	if obj.Spec.Prune {
 		for _, p := range existingEnvs.Items {
@@ -91,7 +93,7 @@ func (r *PreviewEnvironmentManagerReconciler) pullRequestMatchingStrategy(
 		newEnvs[branch] = sha
 	}
 
-	return nil
+	return gcEnvs, nil
 }
 
 func (r *PreviewEnvironmentManagerReconciler) listBranches(ctx context.Context, obj *v1alpha1.PreviewEnvironmentManager) (map[string]string, error) {

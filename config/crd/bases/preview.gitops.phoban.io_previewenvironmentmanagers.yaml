@@ -22,6 +22,9 @@ spec:
     - jsonPath: .status.environmentCount
       name: Count
       type: integer
+    - jsonPath: .status.phase
+      name: Status
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -59,20 +62,18 @@ spec:
                     properties:
                       draft:
                         type: boolean
-                      ignore:
-                        type: string
                       label:
                         items:
                           type: string
                         type: array
                       match:
-                        description: MatchBranch is be a regex string that will be
-                          used to spawn a new preview environment. `branch-name` will
-                          be substituted when this rule is used
+                        description: Match is be a regex string that will be used
+                          to spawn a new preview environment. `branch-name` will be
+                          substituted when this rule is used
                         type: string
                     type: object
                   type:
-                    description: =kubebuilder:validation:Enum=PullRequest,Branch,Any
+                    description: =kubebuilder:validation:Enum=PullRequest,Branch
                     type: string
                 type: object
               suspend:
@@ -260,8 +261,8 @@ spec:
                 description: ObservedGeneration is the last observed generation.
                 format: int64
                 type: integer
-            required:
-            - environmentCount
+              phase:
+                type: string
             type: object
         type: object
     served: true

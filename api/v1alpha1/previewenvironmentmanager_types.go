@@ -55,7 +55,7 @@ type PreviewEnvironmentManagerSpec struct {
 
 	// +kubebuilder:default:=true
 	// +optional
-	Prune bool `json:"prune"`
+	Prune bool `json:"prune,omitempty"`
 }
 
 // WatchObject defines a repository to watch
@@ -103,6 +103,9 @@ type Rules struct {
 
 // TemplateSpec defines the type of PreviewEnvironments that will be created
 type TemplateSpec struct {
+	// +required
+	Interval metav1.Duration `json:"interval"`
+
 	// KustomizationSpec
 	// +required
 	KustomizationSpec KustomizationSpec `json:"kustomizationSpec"`
@@ -125,9 +128,6 @@ type KustomizationSpec struct {
 	// +required
 	Path string `json:"path"`
 
-	// +required
-	Interval metav1.Duration `json:"interval"`
-
 	// +kubebuilder:default:=true
 	// +optional
 	Prune bool `json:"prune"`
@@ -137,10 +137,6 @@ type KustomizationSpec struct {
 }
 
 type SourceSpec struct {
-	// +kubebuilder:default:='1m'
-	// +optional
-	Interval metav1.Duration `json:"interval"`
-
 	// +optional
 	SecretRef *meta.LocalObjectReference `json:"secretRef"`
 }
@@ -155,6 +151,10 @@ type PreviewEnvironmentManagerStatus struct {
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
+	// +optional
+	Phase string `json:"phase"`
+
+	// +optional
 	EnvironmentCount int `json:"environmentCount"`
 }
 
@@ -191,7 +191,31 @@ func (in *PreviewEnvironmentManager) GetEnvironmentCount() int {
 	return in.Status.EnvironmentCount
 }
 
+func (in *PreviewEnvironmentManager) GetStatusConditions() *[]metav1.Condition {
+	return &in.Status.Conditions
+}
+
+func (in *PreviewEnvironmentManager) MarkReconciling() {
+	in.Status.Conditions = []metav1.Condition{}
+	in.Status.Phase = "Unknown"
+	meta.SetResourceCondition(in, meta.ReadyCondition, metav1.ConditionUnknown, meta.ProgressingReason,
+		"Reconciliation in progress")
+}
+
+func (in *PreviewEnvironmentManager) MarkReady() {
+	in.Status.Phase = "Ready"
+	meta.SetResourceCondition(in, meta.ReadyCondition, metav1.ConditionTrue, meta.ReconciliationSucceededReason,
+		"Reconciliation succeeded")
+}
+
+func (in *PreviewEnvironmentManager) MarkFailed() {
+	in.Status.Phase = "Failed"
+	meta.SetResourceCondition(in, meta.ReadyCondition, metav1.ConditionFalse, meta.ReconciliationFailedReason,
+		"Reconciliation failed")
+}
+
 //+kubebuilder:printcolumn:name="Count",type=integer,JSONPath=`.status.environmentCount`
+//+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
 //+kubebuilder:resource:shortName=pman
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status

@@ -70,7 +70,7 @@ func (r *PreviewEnvironmentManagerReconciler) SetupWithManager(mgr ctrl.Manager)
 		Complete(r)
 }
 
-func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, retError error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	obj := &v1alpha1.PreviewEnvironmentManager{}
@@ -81,23 +81,50 @@ func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	obj.MarkReconciling()
+
 	secret := &corev1.Secret{}
 	key := types.NamespacedName{
 		Namespace: obj.Namespace,
 		Name:      obj.Spec.Watch.CredentialsRef.Name,
 	}
 	if err := r.Get(ctx, key, secret); err != nil {
+		obj.MarkFailed()
+		if err := r.Client.Status().Update(ctx, obj); err != nil {
+			log.Info("error updating status")
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, client.IgnoreNotFound(err)
 	}
 
 	token, ok := secret.Data["password"]
 	if !ok {
+		obj.MarkFailed()
+		if err := r.Client.Status().Update(ctx, obj); err != nil {
+			log.Info("error updating status")
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, nil
 	}
 
-	r.RepoClient = github.NewClient(oauth2.NewClient(ctx, oauth2.StaticTokenSource(&oauth2.Token{AccessToken: string(token)})))
+	auth := oauth2.NewClient(ctx, oauth2.StaticTokenSource(&oauth2.Token{AccessToken: string(token)}))
 
-	return r.reconcile(ctx, obj)
+	r.RepoClient = github.NewClient(auth)
+
+	res, err := r.reconcile(ctx, obj)
+
+	if err == nil {
+		return ctrl.Result{}, err
+	}
+
+	obj.MarkReady()
+
+	if err := r.Client.Status().Update(ctx, obj); err != nil {
+		log.Info("error updating status")
+		return ctrl.Result{}, err
+	}
+
+	return res, nil
 }
 
 func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj *v1alpha1.PreviewEnvironmentManager) (ctrl.Result, error) {
@@ -109,21 +136,24 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 		client.InNamespace(obj.Namespace),
 		client.MatchingFields{ownerKey: obj.Name},
 	); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
 	}
 	log.Info("number of existing envs", "count", len(existingEnvs.Items))
+	obj.Status.EnvironmentCount = len(existingEnvs.Items)
 
 	newEnvs := make(map[string]string)
-	gcEnvs := []v1alpha1.PreviewEnvironment{}
-
+	var gcEnvs []v1alpha1.PreviewEnvironment
+	var err error
 	switch obj.Spec.Strategy.Type {
 	case v1alpha1.BranchStrategy:
-		err := r.branchMatchingStrategy(ctx, obj, existingEnvs, newEnvs, gcEnvs)
+		gcEnvs, err = r.branchMatchingStrategy(ctx, obj, existingEnvs, newEnvs)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 	case v1alpha1.PullRequestStrategy:
-		err := r.pullRequestMatchingStrategy(ctx, obj, existingEnvs, newEnvs, gcEnvs)
+		gcEnvs, err = r.pullRequestMatchingStrategy(ctx, obj, existingEnvs, newEnvs)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -132,6 +162,7 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 	}
 
 	for _, p := range gcEnvs {
+		log.Info("garbage collecting environment", "branch", p.Spec.Branch)
 		if err := r.Client.Delete(ctx, &p); err != nil {
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
@@ -143,10 +174,6 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 			log.Info("error reconciling preview env")
 			return ctrl.Result{}, err
 		}
-	}
-
-	if err := r.Client.Status().Update(ctx, obj); err != nil {
-		log.Info("error updating status")
 	}
 
 	return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, nil

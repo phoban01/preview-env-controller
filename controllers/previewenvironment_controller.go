@@ -167,7 +167,7 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 				//on manager
 				URL:       manager.Spec.Watch.URL,
 				SecretRef: &manager.Spec.Watch.CredentialsRef,
-				Interval:  manager.Spec.Template.SourceSpec.Interval,
+				Interval:  manager.Spec.Template.Interval,
 				Reference: &sourcev1.GitRepositoryRef{
 					Branch: obj.Spec.Branch,
 				},
@@ -193,15 +193,13 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 		return err
 	}
 
-	//TODO: fix the following: can result in nil errors
-	//until the revision is ready
 	if curRepo.Status.Artifact == nil {
 		return nil
 	}
 
 	if curRepo.Spec.URL == manager.Spec.Watch.URL &&
 		curRepo.Spec.SecretRef.Name == manager.Spec.Watch.CredentialsRef.Name &&
-		curRepo.Spec.Interval == manager.Spec.Template.SourceSpec.Interval &&
+		curRepo.Spec.Interval == manager.Spec.Template.Interval &&
 		curRepo.Status.Artifact.Revision == obj.Status.Commit {
 		return nil
 	}
@@ -209,7 +207,7 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 	newRepo := curRepo.DeepCopy()
 	newRepo.Spec.URL = manager.Spec.Watch.URL
 	newRepo.Spec.SecretRef = manager.Spec.Watch.CredentialsRef.DeepCopy()
-	newRepo.Spec.Interval = manager.Spec.Template.SourceSpec.Interval
+	newRepo.Spec.Interval = manager.Spec.Template.Interval
 
 	obj.Status.Commit = curRepo.Status.Artifact.Revision
 
@@ -256,7 +254,7 @@ func (r *PreviewEnvironmentReconciler) reconcileKustomization(ctx context.Contex
 				SourceRef: *sourceRef,
 				Path:      manager.Spec.Template.KustomizationSpec.Path,
 				Prune:     manager.Spec.Template.KustomizationSpec.Prune,
-				Interval:  manager.Spec.Template.KustomizationSpec.Interval,
+				Interval:  manager.Spec.Template.Interval,
 				PostBuild: &kustomizev1.PostBuild{
 					Substitute: map[string]string{
 						"branch": obj.Spec.Branch,
