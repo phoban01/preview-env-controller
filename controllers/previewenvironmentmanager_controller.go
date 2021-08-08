@@ -64,6 +64,7 @@ func (r *PreviewEnvironmentManagerReconciler) SetupWithManager(mgr ctrl.Manager)
 	}); err != nil {
 		return err
 	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&previewv1alpha1.PreviewEnvironmentManager{}).
 		Owns(&previewv1alpha1.PreviewEnvironment{}).

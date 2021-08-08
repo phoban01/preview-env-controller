@@ -23,6 +23,7 @@ import (
 
 var PreviewEnvironmentKind = "PreviewEnvironment"
 
+
 // PreviewEnvironmentSpec defines the desired state of PreviewEnvironment
 type PreviewEnvironmentSpec struct {
 	// Branch
@@ -31,6 +32,7 @@ type PreviewEnvironmentSpec struct {
 
 	// +required
 	CreateNamespace bool `json:"createNamespace"`
+
 }
 
 // PreviewEnvironmentStatus defines the observed state of PreviewEnvironment
@@ -70,6 +72,7 @@ func (in *PreviewEnvironment) GetEnvNamespace() string {
 // +kubebuilder:resource:shortName=penv
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+
 
 // PreviewEnvironment is the Schema for the previewenvironments API
 type PreviewEnvironment struct {

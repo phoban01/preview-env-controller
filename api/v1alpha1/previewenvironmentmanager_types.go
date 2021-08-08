@@ -156,6 +156,7 @@ type PreviewEnvironmentManagerStatus struct {
 
 	// +optional
 	EnvironmentCount int `json:"environmentCount"`
+
 }
 
 // GetLimitl Returns the reconcilation interval
@@ -223,6 +224,7 @@ func (in *PreviewEnvironmentManager) MarkTokenNotFound() {
 //+kubebuilder:printcolumn:name="Count",type=integer,JSONPath=`.status.environmentCount`
 //+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
 //+kubebuilder:resource:shortName=pman
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
