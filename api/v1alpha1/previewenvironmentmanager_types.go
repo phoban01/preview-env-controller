@@ -17,6 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"net/url"
+	"strings"
+
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta1"
 	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -163,6 +166,24 @@ func (in *PreviewEnvironmentManager) GetLimit() int {
 // GetInterval Returns the reconcilation interval
 func (in *PreviewEnvironmentManager) GetInterval() metav1.Duration {
 	return in.Spec.Interval
+}
+
+func (in *PreviewEnvironmentManager) GetOwner() string {
+	u, err := url.Parse(in.Spec.Watch.URL)
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(strings.TrimLeft(u.Path, "/"), "/")
+	return parts[0]
+}
+
+func (in *PreviewEnvironmentManager) GetRepo() string {
+	u, err := url.Parse(in.Spec.Watch.URL)
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(strings.TrimLeft(u.Path, "/"), "/")
+	return strings.TrimSuffix(parts[1], ".git")
 }
 
 // GetEnvironmentCount returns the number of active preview environments

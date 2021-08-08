@@ -19,8 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"net/url"
-	"regexp"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -31,7 +29,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v37/github"
 	previewv1alpha1 "github.com/phoban01/preview-env-controller/api/v1alpha1"
 	v1alpha1 "github.com/phoban01/preview-env-controller/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -125,7 +123,10 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 			return ctrl.Result{}, err
 		}
 	case v1alpha1.PullRequestStrategy:
-		return ctrl.Result{}, nil
+		err := r.pullRequestMatchingStrategy(ctx, obj, existingEnvs, newEnvs, gcEnvs)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	default:
 		return ctrl.Result{}, nil
 	}
@@ -151,43 +152,12 @@ func (r *PreviewEnvironmentManagerReconciler) reconcile(ctx context.Context, obj
 	return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, nil
 }
 
-func (r *PreviewEnvironmentManagerReconciler) listBranches(ctx context.Context, sourceURL string) (map[string]string, error) {
-	owner, repo, err := parseURL(sourceURL)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, _, err := r.RepoClient.Repositories.ListBranches(ctx, owner, repo, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	branches := make(map[string]string, len(resp))
-
-	for _, b := range resp {
-		branches[*b.Name] = *b.Commit.SHA
-	}
-
-	return branches, nil
-}
-
-func parseURL(repoURL string) (string, string, error) {
-	u, err := url.Parse(repoURL)
-	if err != nil {
-		return "", "", err
-	}
-	p := strings.Split(strings.TrimLeft(u.Path, "/"), "/")
-	owner := p[0]
-	repo := strings.TrimSuffix(p[1], ".git")
-	return owner, repo, nil
-}
-
 func (r *PreviewEnvironmentManagerReconciler) reconcilePreviewEnv(ctx context.Context, obj *v1alpha1.PreviewEnvironmentManager, branch, sha string) error {
 	log := ctrl.LoggerFrom(ctx)
 
 	name := fmt.Sprintf("%s-%s", strings.TrimSuffix(obj.Spec.Template.Prefix, "-"), branch)
 
-	if r.previewEnvExists(ctx, name, obj.Namespace) != true {
+	if r.getPreviewEnv(ctx, name, obj.Namespace) != true {
 		if obj.GetEnvironmentCount() > obj.GetLimit() {
 			log.Info("preview environment limit reached")
 			return nil
@@ -200,7 +170,7 @@ func (r *PreviewEnvironmentManagerReconciler) reconcilePreviewEnv(ctx context.Co
 	return nil
 }
 
-func (r *PreviewEnvironmentManagerReconciler) previewEnvExists(ctx context.Context, name, namespace string) bool {
+func (r *PreviewEnvironmentManagerReconciler) getPreviewEnv(ctx context.Context, name, namespace string) bool {
 	err := r.Client.Get(ctx, types.NamespacedName{
 		Name:      name,
 		Namespace: namespace,
@@ -239,62 +209,6 @@ func (r *PreviewEnvironmentManagerReconciler) createPreviewEnv(
 	log.Info("preview environment created", "name", name)
 
 	obj.Status.EnvironmentCount++
-
-	return nil
-}
-
-func (r *PreviewEnvironmentManagerReconciler) branchMatchingStrategy(
-	ctx context.Context,
-	obj *v1alpha1.PreviewEnvironmentManager,
-	existingEnvs *v1alpha1.PreviewEnvironmentList,
-	newEnvs map[string]string,
-	gcEnvs []v1alpha1.PreviewEnvironment,
-) error {
-	log := ctrl.LoggerFrom(ctx)
-
-	branches, err := r.listBranches(ctx, obj.Spec.Watch.URL)
-	if err != nil {
-		log.Info("rate limited by github", "error", err.Error())
-		return err
-	}
-
-	re, err := regexp.Compile(obj.Spec.Strategy.Rules.Match)
-	if err != nil {
-		return err
-	}
-
-	if obj.Spec.Prune {
-		for _, p := range existingEnvs.Items {
-			if _, ok := branches[p.Spec.Branch]; !ok {
-				log.Info("branch not found", "branch", p.Spec.Branch)
-				gcEnvs = append(gcEnvs, p)
-			}
-
-			if ok := re.MatchString(p.Spec.Branch); !ok {
-				log.Info("Existing environment branch no longer matches rule",
-					"branch", p.Spec.Branch,
-					"rule", obj.Spec.Strategy.Rules.Match)
-				gcEnvs = append(gcEnvs, p)
-			}
-		}
-	}
-
-	// iterate branches
-	for branch, sha := range branches {
-		// check for matching rules
-		if ok := re.MatchString(branch); !ok {
-			log.Info("branch doesn't match rule",
-				"branch", branch,
-				"rule", obj.Spec.Strategy.Rules.Match)
-			continue
-		}
-
-		log.Info("branch matches rule",
-			"branch", branch,
-			"rule", obj.Spec.Strategy.Rules.Match)
-
-		newEnvs[branch] = sha
-	}
 
 	return nil
 }
