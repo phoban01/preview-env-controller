@@ -22,7 +22,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var PreviewEnvironmentManagerKind = "PreviewEnvironmentManager"
+type PreviewEnvironmentManagerStrategy string
+
+const (
+	PreviewEnvironmentManagerKind                                   = "PreviewEnvironmentManager"
+	PullRequestStrategy           PreviewEnvironmentManagerStrategy = "PullRequest"
+	BranchStrategy                PreviewEnvironmentManagerStrategy = "Branch"
+)
 
 // PreviewEnvironmentManagerSpec defines the desired state of PreviewEnvironmentManager
 type PreviewEnvironmentManagerSpec struct {
@@ -30,7 +36,7 @@ type PreviewEnvironmentManagerSpec struct {
 	Watch WatchObject `json:"watch"`
 
 	// +required
-	Rules Rules `json:"rules"`
+	Strategy Strategy `json:"strategy"`
 
 	// +required
 	Template TemplateSpec `json:"template"`
@@ -65,6 +71,31 @@ type WatchObject struct {
 type Ref struct {
 	// +required
 	Branch string `json:"branch"`
+}
+
+type Strategy struct {
+	// =kubebuilder:validation:Enum=PullRequest,Branch
+	// +optional
+	Type PreviewEnvironmentManagerStrategy `json:"type"`
+
+	// +optional
+	Rules Rules `json:"rules"`
+}
+
+// Rules define the rules that determine which branches will
+// create a PreviewEnvironment
+type Rules struct {
+	// Match is be a regex string that will be used to spawn a new
+	// preview environment. `branch-name` will be substituted when this
+	// rule is used
+	// +optional
+	Match string `json:"match,omitempty"`
+
+	// +optional
+	Labels []string `json:"label"`
+
+	// +optional
+	Draft bool `json:"draft"`
 }
 
 // TemplateSpec defines the type of PreviewEnvironments that will be created
@@ -109,16 +140,6 @@ type SourceSpec struct {
 
 	// +optional
 	SecretRef *meta.LocalObjectReference `json:"secretRef"`
-}
-
-// Rules define the rules that determine which branches will
-// create a PreviewEnvironment
-type Rules struct {
-	// MatchBranch is be a regex string that will be used to spawn a new
-	// preview environment. `branch-name` will be substituted when this
-	// rule is used
-	// +optional
-	MatchBranch string `json:"matchBranch,omitempty"`
 }
 
 // PreviewEnvironmentManagerStatus defines the observed state of PreviewEnvironmentManager

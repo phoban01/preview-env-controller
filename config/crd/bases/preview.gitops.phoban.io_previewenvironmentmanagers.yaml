@@ -51,14 +51,28 @@ spec:
               prune:
                 default: true
                 type: boolean
-              rules:
-                description: Rules define the rules that determine which branches
-                  will create a PreviewEnvironment
+              strategy:
                 properties:
-                  matchBranch:
-                    description: MatchBranch is be a regex string that will be used
-                      to spawn a new preview environment. `branch-name` will be substituted
-                      when this rule is used
+                  rules:
+                    description: Rules define the rules that determine which branches
+                      will create a PreviewEnvironment
+                    properties:
+                      draft:
+                        type: boolean
+                      ignore:
+                        type: string
+                      label:
+                        items:
+                          type: string
+                        type: array
+                      match:
+                        description: MatchBranch is be a regex string that will be
+                          used to spawn a new preview environment. `branch-name` will
+                          be substituted when this rule is used
+                        type: string
+                    type: object
+                  type:
+                    description: =kubebuilder:validation:Enum=PullRequest,Branch,Any
                     type: string
                 type: object
               suspend:
@@ -162,7 +176,7 @@ spec:
                 type: object
             required:
             - interval
-            - rules
+            - strategy
             - template
             - watch
             type: object

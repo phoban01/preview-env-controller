@@ -106,7 +106,7 @@ func (r *PreviewEnvironmentReconciler) reconcile(ctx context.Context, obj *v1alp
 
 	if obj.Spec.CreateNamespace {
 		if err := r.reconcileNamespace(ctx, obj, manager); err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, nil
 		}
 	}
 
@@ -195,6 +195,10 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 
 	//TODO: fix the following: can result in nil errors
 	//until the revision is ready
+	if curRepo.Status.Artifact == nil {
+		return nil
+	}
+
 	if curRepo.Spec.URL == manager.Spec.Watch.URL &&
 		curRepo.Spec.SecretRef.Name == manager.Spec.Watch.CredentialsRef.Name &&
 		curRepo.Spec.Interval == manager.Spec.Template.SourceSpec.Interval &&

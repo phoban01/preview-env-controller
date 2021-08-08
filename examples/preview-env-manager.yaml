@@ -5,7 +5,7 @@ metadata:
   name: demo-manager
   namespace: preview-env-controller-system
 spec:
-  interval: 1m
+  interval: 5m
   limit: 2
   # the repository to watch for matching branches
   watch:
@@ -14,14 +14,28 @@ spec:
       branch: "main"
     credentialsRef:
       name: gh-token
-  rules:
-    matchBranch: '^feature-.*'
+  strategy:
+    type: Branch
+    # empty rules matches all
+    rules:
+      # branch
+      match: '^feature-.*'
+      # pull-request
+      # labels:
+        # - 'deploy'
+      # draft: false
   template:
-    createNamespace: true
+    # setting this will also set target namespace on the
+    # kustomization (currentl sets target but should override and allow for target
+    # to be set here)
     prefix: pr-env-
+    # interval will be passed to both any template
+    # resources created
+    createNamespace: true
     kustomizationSpec:
-      path: './preview-template'
       interval: 1m
+      path: './preview-template'
       prune: true
+    # can use sourceSpec to point at a different repo
     sourceSpec:
       interval: 1m
