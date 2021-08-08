@@ -8,14 +8,14 @@
 
 https://fluxcd.io/
 
-This project is a proof-of-concept set of controllers that implement Preview Environments in a GitOps compatible fashion. The basic principle is to define a set of manifests which will be used as a template. Then the controller will watch a specified repository and create a new environment using the template when specified conditions are met.
+This project is a proof-of-concept set of controllers that implement Preview Environments in a GitOps compatible fashion. The basic principle is to watch a specified repository and create a new environment when the conditions are met.
 
 With `strategy.type=Branch` if a branch matches the rule, a `PreviewEnvironment` will be created using the specified template
 with the branch name and commit SHA substituted by the controller.
 
 With `strategy.type=PullRequest` if a PullRequest is created on the watched repository then a `Preview Environment` will be created.
 
-Under the hood this makes use of Flux and the GitOps Toolkit components.
+Under the hood the controller makes use of Flux and the GitOps Toolkit components.
 
 ### Limitations
 
