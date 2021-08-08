@@ -15,11 +15,12 @@ spec:
     credentialsRef:
       name: gh-token
   strategy:
-    type: PullRequest
+    # type: PullRequest
+    type: Branch
     # empty rules matches all
     rules:
       # branch
-      # match: '^features-.*$'
+      match: '^feature-.*$'
       # pull-request
       draft: false
   template:

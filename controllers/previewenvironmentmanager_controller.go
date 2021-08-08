@@ -75,7 +75,7 @@ func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req
 
 	obj := &v1alpha1.PreviewEnvironmentManager{}
 	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
-		log.Info("object not found",
+		log.Info("preview environment manager not found",
 			"namespace", req.NamespacedName.Namespace,
 			"name", req.NamespacedName.Name)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -90,21 +90,15 @@ func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req
 	}
 	if err := r.Get(ctx, key, secret); err != nil {
 		obj.MarkTokenNotFound()
-		if err := r.Client.Status().Update(ctx, obj); err != nil {
-			log.Info("error updating status")
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, client.IgnoreNotFound(err)
+		log.Info("could not retrieve secret")
+		return r.patchStatus(ctx, ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, obj)
 	}
 
 	token, ok := secret.Data["password"]
 	if !ok {
 		obj.MarkTokenNotFound()
-		if err := r.Client.Status().Update(ctx, obj); err != nil {
-			log.Info("error updating status")
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, nil
+		log.Info("key password not found")
+		return r.patchStatus(ctx, ctrl.Result{RequeueAfter: obj.GetInterval().Duration}, obj)
 	}
 
 	auth := oauth2.NewClient(ctx, oauth2.StaticTokenSource(&oauth2.Token{AccessToken: string(token)}))
@@ -114,13 +108,21 @@ func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req
 	res, err := r.reconcile(ctx, obj)
 	if err != nil {
 		obj.MarkFailed()
-		return ctrl.Result{}, err
+		return r.patchStatus(ctx, ctrl.Result{}, obj)
 	}
 
 	obj.MarkReady()
 
+	return r.patchStatus(ctx, res, obj)
+}
+
+func (r *PreviewEnvironmentManagerReconciler) patchStatus(ctx context.Context, res ctrl.Result, obj *v1alpha1.PreviewEnvironmentManager) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	obj.Status.ObservedGeneration = obj.ObjectMeta.Generation
+
 	if err := r.Client.Status().Update(ctx, obj); err != nil {
-		log.Info("error updating status")
+		log.Info("error updating status", "error", err.Error())
 		return ctrl.Result{}, err
 	}
 

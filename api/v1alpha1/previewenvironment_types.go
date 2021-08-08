@@ -67,7 +67,6 @@ func (in *PreviewEnvironment) GetEnvNamespace() string {
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:printcolumn:name="Branch",type=string,JSONPath=`.spec.branch`
 // +kubebuilder:printcolumn:name="Commit",type=string,JSONPath=`.status.commit`
-// +kubebuilder:printcolumn:name="Namespace",type=string,JSONPath=`.status.envNamespace`
 // +kubebuilder:resource:shortName=penv
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

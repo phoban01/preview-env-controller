@@ -28,9 +28,6 @@ spec:
     - jsonPath: .status.commit
       name: Commit
       type: string
-    - jsonPath: .status.envNamespace
-      name: Namespace
-      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:

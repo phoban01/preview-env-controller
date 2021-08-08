@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta1"
@@ -59,7 +60,9 @@ func (r *PreviewEnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	obj := &v1alpha1.PreviewEnvironment{}
 	if err := r.Client.Get(ctx, req.NamespacedName, obj); err != nil {
-		log.Info("object not found", "name", req.NamespacedName.Name, "namespace", req.NamespacedName.Namespace)
+		log.Info("preview environment not found",
+			"name", req.NamespacedName.Name,
+			"namespace", req.NamespacedName.Namespace)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -209,7 +212,8 @@ func (r *PreviewEnvironmentReconciler) reconcileGitRepository(ctx context.Contex
 	newRepo.Spec.SecretRef = manager.Spec.Watch.CredentialsRef.DeepCopy()
 	newRepo.Spec.Interval = manager.Spec.Template.Interval
 
-	obj.Status.Commit = curRepo.Status.Artifact.Revision
+	// TODO: hack, do this properly
+	obj.Status.Commit = strings.Split(curRepo.Status.Artifact.Revision, "/")[1][0:7]
 
 	return r.Client.Patch(ctx, curRepo, client.MergeFrom(newRepo))
 }
