@@ -84,11 +84,11 @@ spec:
                 properties:
                   createNamespace:
                     type: boolean
+                  interval:
+                    type: string
                   kustomizationSpec:
                     description: KustomizationSpec
                     properties:
-                      interval:
-                        type: string
                       path:
                         type: string
                       prune:
@@ -120,7 +120,6 @@ spec:
                         - name
                         type: object
                     required:
-                    - interval
                     - path
                     type: object
                   prefix:
@@ -128,9 +127,6 @@ spec:
                   sourceSpec:
                     description: SourceSpec
                     properties:
-                      interval:
-                        default: '''1m'''
-                        type: string
                       secretRef:
                         description: LocalObjectReference contains enough information
                           to let you locate the referenced object inside the same
@@ -146,6 +142,7 @@ spec:
                   targetNamespace:
                     type: string
                 required:
+                - interval
                 - kustomizationSpec
                 type: object
               watch:

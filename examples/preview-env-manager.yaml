@@ -26,7 +26,7 @@ spec:
     # setting this will also set target namespace on the
     # kustomization (currentl sets target but should override and allow for target
     # to be set here)
-    prefix: pr-env-x-
+    prefix: pr-env-
     # interval will be passed to both any template
     interval: 1m
     # resources created

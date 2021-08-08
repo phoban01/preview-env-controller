@@ -89,7 +89,7 @@ func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req
 		Name:      obj.Spec.Watch.CredentialsRef.Name,
 	}
 	if err := r.Get(ctx, key, secret); err != nil {
-		obj.MarkFailed()
+		obj.MarkTokenNotFound()
 		if err := r.Client.Status().Update(ctx, obj); err != nil {
 			log.Info("error updating status")
 			return ctrl.Result{}, err
@@ -99,7 +99,7 @@ func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req
 
 	token, ok := secret.Data["password"]
 	if !ok {
-		obj.MarkFailed()
+		obj.MarkTokenNotFound()
 		if err := r.Client.Status().Update(ctx, obj); err != nil {
 			log.Info("error updating status")
 			return ctrl.Result{}, err
@@ -112,8 +112,8 @@ func (r *PreviewEnvironmentManagerReconciler) Reconcile(ctx context.Context, req
 	r.RepoClient = github.NewClient(auth)
 
 	res, err := r.reconcile(ctx, obj)
-
-	if err == nil {
+	if err != nil {
+		obj.MarkFailed()
 		return ctrl.Result{}, err
 	}
 

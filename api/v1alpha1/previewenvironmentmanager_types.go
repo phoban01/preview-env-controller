@@ -214,6 +214,12 @@ func (in *PreviewEnvironmentManager) MarkFailed() {
 		"Reconciliation failed")
 }
 
+func (in *PreviewEnvironmentManager) MarkTokenNotFound() {
+	in.Status.Phase = "Failed"
+	meta.SetResourceCondition(in, meta.ReadyCondition, metav1.ConditionFalse, meta.ReconciliationFailedReason,
+		"Reconciliation failed: could not get token")
+}
+
 //+kubebuilder:printcolumn:name="Count",type=integer,JSONPath=`.status.environmentCount`
 //+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
 //+kubebuilder:resource:shortName=pman
