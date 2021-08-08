@@ -4,7 +4,7 @@
 
 ***Please do not use this in production. This is very much a proof of concept and the controllers are very primitive without many safeguards and no tests.***
 
-## Flux based GitOps PreviewEnvironments
+## Flux based GitOps Preview Environments
 
 https://fluxcd.io/
 
