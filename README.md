@@ -1,4 +1,4 @@
-# GitOps Preview Environments
+# GitOps Preview Environments Demo
 
 ⚠️ Proof of Concept - not production ready
 
