@@ -98,7 +98,7 @@ spec:
 
 1. Ensure you have a local `kind` cluster running (https://kind.sigs.k8s.io/docs/user/quick-start/)
 
-2. Ensure you have the flux components installed (https://fluxcd.io/docs/installation/)
+2. Ensure you have Flux installed in the cluster (https://fluxcd.io/docs/installation/)
 
 3. Create a secret with your GitHub credentials `$ ./scripts/create_gh_secret.sh`
 
