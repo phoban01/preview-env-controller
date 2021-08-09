@@ -96,6 +96,11 @@ spec:
 
 ### Demo
 
+Pre Requisites:
+- `kind`
+- `gh`
+- `kubectl`
+
 1. Ensure you have a local `kind` cluster running (https://kind.sigs.k8s.io/docs/user/quick-start/)
 
 2. Ensure you have Flux installed in the cluster (https://fluxcd.io/docs/installation/)
